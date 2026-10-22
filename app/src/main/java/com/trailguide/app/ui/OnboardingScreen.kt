@@ -27,6 +27,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.trailguide.app.data.MapPreferences
+import com.trailguide.app.data.MapboxStyleHelper
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
 fun OnboardingScreen(
@@ -81,7 +84,7 @@ fun OnboardingScreen(
         Button(
             onClick = {
                 if (token.isNotBlank()) {
-                    prefs.mapboxToken = token
+                    prefs.mapboxToken = MapboxStyleHelper.sanitizeToken(token)
                 }
                 prefs.markOnboardingDone()
                 onFinished()

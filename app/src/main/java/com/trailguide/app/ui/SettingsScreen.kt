@@ -38,6 +38,7 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import com.trailguide.app.data.MapPreferences
+import com.trailguide.app.data.MapboxStyleHelper
 import com.trailguide.app.data.OfflineMapManager
 import com.trailguide.app.data.UpdateChecker
 import kotlinx.coroutines.launch
@@ -93,12 +94,27 @@ fun SettingsScreen(onBack: () -> Unit, onTokenSaved: () -> Unit) {
             )
             Button(
                 onClick = {
-                    prefs.mapboxToken = token.trim()
-                    msg = if (prefs.hasToken()) "RDR2-style map enabled" else "Using free map"
-                    onTokenSaved()
+                    val cleaned = MapboxStyleHelper.sanitizeToken(token)
+                    if (cleaned.isBlank()) {
+                        prefs.mapboxToken = ""
+                        msg = "Token cleared — free map"
+                        onTokenSaved()
+                        return@Button
+                    }
+                    msg = "Checking token with Mapbox…"
+                    scope.launch {
+                        val check = MapboxStyleHelper.validateToken(cleaned)
+                        if (check.valid) {
+                            prefs.mapboxToken = cleaned
+                            msg = "Token verified — loading RDR2-style map"
+                            onTokenSaved()
+                        } else {
+                            msg = "Token failed: ${check.message}"
+                        }
+                    }
                 },
                 Modifier.fillMaxWidth()
-            ) { Text("Save token") }
+            ) { Text("Save & verify token") }
 
             Spacer(Modifier.height(16.dp))
             HorizontalDivider()

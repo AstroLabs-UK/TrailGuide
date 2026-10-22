@@ -127,11 +127,12 @@ class MapPreferences(context: Context) {
         set(value) = prefs.edit().putString(KEY_PENDING_TAG, value).apply()
 
     fun styleUrl(): String {
-        val token = mapboxToken
-        return if (token.isNotBlank()) {
-            "https://api.mapbox.com/styles/v1/mapbox/cjpn02blt2cw32sqrt9r8e5c3?access_token=$token"
-        } else OPENFREEMAP_LIBERTY
+        // Prefer free style URI for MapLibre; Mapbox New Western is loaded via JSON rewrite
+        return OPENFREEMAP_LIBERTY
     }
+
+    fun sanitizedMapboxToken(): String = MapboxStyleHelper.sanitizeToken(mapboxToken)
+
 
     private fun nanBits() = java.lang.Double.doubleToRawLongBits(Double.NaN)
     private fun doubleToBits(v: Double) = java.lang.Double.doubleToRawLongBits(v)

@@ -54,6 +54,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -78,6 +79,7 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.accompanist.permissions.shouldShowRationale
 import com.trailguide.app.data.MapPreferences
+import com.trailguide.app.data.MapboxStyleHelper
 import com.trailguide.app.data.NetworkMonitor
 import com.trailguide.app.routing.PlaceSearch
 import com.trailguide.app.routing.TravelMode
@@ -163,13 +165,14 @@ fun MapScreen(
         if (!locationPermissions.allPermissionsGranted) locationPermissions.launchMultiplePermissionRequest()
     }
 
-    LaunchedEffect(styleUrl) {
-        mapLibreMap?.setStyle(Style.Builder().fromUri(styleUrl)) { style ->
-            promoteLabelLayers(style)
-            enableLocationComponent(context, mapLibreMap!!, style, prefs.northUp)
-            styleReady = true
-            styleLoadFailed = false
-        }
+    LaunchedEffect(styleUrl, styleVersion) {
+        val map = mapLibreMap ?: return@LaunchedEffect
+        styleReady = false
+        applyMapStyle(
+            map, context, prefs,
+            onReady = { styleReady = true; styleLoadFailed = false },
+            onFailed = { styleReady = true; styleLoadFailed = true }
+        )
     }
 
     LaunchedEffect(locationState.location) {
@@ -271,15 +274,11 @@ fun MapScreen(
                     view.getMapAsync { map ->
                         mapLibreMap = map
                         // Load preferred style; on failure fall back to free OpenFreeMap
-                        val primary = styleUrl
-                        map.setStyle(Style.Builder().fromUri(primary)) { style ->
-                            promoteLabelLayers(style)
-                            enableLocationComponent(context, map, style, prefs.northUp)
-                            styleReady = true
-                            styleLoadFailed = false
-                        }
-                        // MapLibre may not fire a dedicated fail listener on all versions;
-                        // if primary is Mapbox and tiles fail, user can clear token in Settings.
+                        applyMapStyle(
+                            map, context, prefs,
+                            onReady = { styleReady = true; styleLoadFailed = false },
+                            onFailed = { styleReady = true; styleLoadFailed = true }
+                        )
                         map.addOnMapLongClickListener { latLng ->
                             mapViewModel.uiState.value.location?.let {
                                 navViewModel.calculateRoute(it, latLng.latitude, latLng.longitude, "Dropped pin")
@@ -601,7 +600,7 @@ fun MapScreen(
             val status = when {
                 navState.isRerouting -> "Finding a new path…"
                 navState.isCalculating -> "Getting directions…"
-                styleLoadFailed -> "Map style failed — using free map fallback"
+                styleLoadFailed -> "Mapbox style failed (bad token or network) — free map shown"
                 navState.error != null -> navState.error!!
                 locationState.error != null -> locationState.error
                 locationState.isLoading -> "Getting your location…"
@@ -660,6 +659,53 @@ private fun removeLayerAndSource(style: Style, layerId: String, sourceId: String
 }
 
 @SuppressLint("MissingPermission")
+
+
+private fun applyMapStyle(
+    map: org.maplibre.android.maps.MapLibreMap,
+    context: android.content.Context,
+    prefs: MapPreferences,
+    onReady: () -> Unit,
+    onFailed: () -> Unit
+) {
+    val token = prefs.sanitizedMapboxToken()
+    if (token.isBlank()) {
+        map.setStyle(Style.Builder().fromUri(MapPreferences.OPENFREEMAP_LIBERTY)) { style ->
+            promoteLabelLayers(style)
+            enableLocationComponent(context, map, style, prefs.northUp)
+            onReady()
+        }
+        return
+    }
+    // Load Mapbox New Western on background, rewrite mapbox:// for MapLibre
+    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+        val json = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            MapboxStyleHelper.loadStyleJsonForMapLibre(token)
+        }
+        if (json != null) {
+            try {
+                map.setStyle(Style.Builder().fromJson(json)) { style ->
+                    promoteLabelLayers(style)
+                    enableLocationComponent(context, map, style, prefs.northUp)
+                    onReady()
+                }
+            } catch (e: Exception) {
+                map.setStyle(Style.Builder().fromUri(MapPreferences.OPENFREEMAP_LIBERTY)) { style ->
+                    promoteLabelLayers(style)
+                    enableLocationComponent(context, map, style, prefs.northUp)
+                    onFailed()
+                }
+            }
+        } else {
+            map.setStyle(Style.Builder().fromUri(MapPreferences.OPENFREEMAP_LIBERTY)) { style ->
+                promoteLabelLayers(style)
+                enableLocationComponent(context, map, style, prefs.northUp)
+                onFailed()
+            }
+        }
+    }
+}
+
 
 /** Move place/road label layers above 3D buildings so text stays readable. */
 private fun promoteLabelLayers(style: Style) {
