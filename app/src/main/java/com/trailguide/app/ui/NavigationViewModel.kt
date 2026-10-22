@@ -151,7 +151,9 @@ class NavigationViewModel(application: Application) : AndroidViewModel(applicati
         val lower = q.lowercase()
         val keywords = listOf(
             "shop", "store", "market", "supermarket", "mall", "cafe", "coffee",
-            "restaurant", "fuel", "gas", "petrol", "pharmacy", "chemist", "bank",
+            "restaurant", "restaurants", "dining", "food", "eat", "fast food",
+            "fuel", "gas", "petrol", "parking", "hospital", "hotel",
+            "pharmacy", "chemist", "bank",
             "walmart", "tesco", "sainsbury", "carrefour", "lidl", "aldi", "costco",
             "starbucks", "mcdonald", "target", "kroger", "asda", "morrisons",
             "boots", "waiterose", "waitrose", "spar", "7-eleven", "cvs", "walgreens",

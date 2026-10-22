@@ -78,18 +78,36 @@ class UpdateChecker(private val context: Context) {
         try {
             val dir = File(context.cacheDir, "updates").apply { mkdirs() }
             val out = File(dir, "trailguide-update.apk")
-            val conn = URL(apkUrl).openConnection() as HttpURLConnection
-            conn.setRequestProperty("User-Agent", "TrailGuide-UpdateChecker")
-            conn.setRequestProperty("Accept", "application/octet-stream")
-            conn.connectTimeout = 20000
-            conn.readTimeout = 120000
-            conn.instanceFollowRedirects = true
-            if (conn.responseCode !in 200..299) {
-                Log.e(TAG, "download HTTP ${conn.responseCode}")
-                return@withContext false
+            var currentUrl = apkUrl
+            var conn: HttpURLConnection? = null
+            // Follow redirects manually (GitHub uses 302 to objects.githubusercontent.com)
+            repeat(5) {
+                conn = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+                    instanceFollowRedirects = false
+                    setRequestProperty("User-Agent", "TrailGuide-UpdateChecker")
+                    setRequestProperty("Accept", "*/*")
+                    connectTimeout = 20000
+                    readTimeout = 180000
+                }
+                val code = conn!!.responseCode
+                if (code in 300..399) {
+                    currentUrl = conn!!.getHeaderField("Location") ?: return@withContext false
+                    conn!!.disconnect()
+                    return@repeat
+                }
+                if (code !in 200..299) {
+                    Log.e(TAG, "download HTTP $code for $currentUrl")
+                    return@withContext false
+                }
+                return@repeat
             }
-            conn.inputStream.use { input ->
+            conn!!.inputStream.use { input ->
                 out.outputStream().use { output -> input.copyTo(output) }
+            }
+            if (out.length() < 10_000) {
+                Log.e(TAG, "APK too small: ${out.length()}")
+                out.delete()
+                return@withContext false
             }
             prefs.pendingUpdatePath = out.absolutePath
             prefs.pendingUpdateTag = info.tagName
@@ -153,18 +171,22 @@ class UpdateChecker(private val context: Context) {
     private fun isNewerThanInstalled(remoteTag: String): Boolean {
         val localName = currentVersionName()
         val localCode = currentVersionCode()
-        val remote = parseVersion(remoteTag)
+        // Strip -build.N so "v0.7.7-build.30" compares as 0.7.7 first
+        val remoteVer = remoteTag
+            .replace(Regex("""-?build[.\-]?\d+""", RegexOption.IGNORE_CASE), "")
+            .trim()
+        val remote = parseVersion(remoteVer)
         val local = parseVersion(localName)
-        // Prefer comparing trailing build number from tags like v0.7.3-build.12
-        val remoteBuild = Regex("""build[.\-]?(\d+)""", RegexOption.IGNORE_CASE)
-            .find(remoteTag)?.groupValues?.get(1)?.toIntOrNull()
-        if (remoteBuild != null && remoteBuild > localCode) return true
         for (i in 0 until maxOf(remote.size, local.size)) {
             val rv = remote.getOrElse(i) { 0 }
             val lv = local.getOrElse(i) { 0 }
             if (rv > lv) return true
             if (rv < lv) return false
         }
+        // Same version name → only newer if CI build number > installed versionCode
+        val remoteBuild = Regex("""build[.\-]?(\d+)""", RegexOption.IGNORE_CASE)
+            .find(remoteTag)?.groupValues?.get(1)?.toIntOrNull()
+        if (remoteBuild != null) return remoteBuild > localCode
         return false
     }
 

@@ -134,6 +134,7 @@ fun MapScreen(
     }
     var searchQuery by remember { mutableStateOf("") }
     var searchFocused by remember { mutableStateOf(false) }
+    var selectedPlace by remember { mutableStateOf<com.trailguide.app.routing.PlaceResult?>(null) }
 
     val locationPermissions = rememberMultiplePermissionsState(
         listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -382,13 +383,14 @@ fun MapScreen(
                         listOf("Restaurant", "Fuel", "Parking", "Hospital", "Coffee").forEach { cat ->
                             AssistChip(
                                 onClick = {
-                                    val loc = locationState.location
                                     searchQuery = cat
                                     searchFocused = true
-                                    if (loc != null) {
-                                        // use text search with category; nearby bias in PlaceSearch
-                                        navViewModel.searchPlaces(cat, locationState.location?.latitude, locationState.location?.longitude)
-                                    }
+                                    selectedPlace = null
+                                    navViewModel.searchPlaces(
+                                        cat,
+                                        locationState.location?.latitude,
+                                        locationState.location?.longitude
+                                    )
                                 },
                                 label = { Text(cat) }
                             )
@@ -413,12 +415,9 @@ fun MapScreen(
                                             Modifier
                                                 .fillMaxWidth()
                                                 .clickable {
-                                                    locationState.location?.let {
-                                                        navViewModel.navigateTo(it, place)
-                                                        searchQuery = ""
-                                                        searchFocused = false
-                                                        keyboard?.hide()
-                                                    }
+                                                    selectedPlace = place
+                                                    searchFocused = false
+                                                    keyboard?.hide()
                                                 }
                                                 .padding(16.dp, 12.dp)
                                         ) {
@@ -592,6 +591,62 @@ fun MapScreen(
                         Row {
                             TextButton(onClick = { shareDestination() }) { Text("Share") }
                             TextButton(onClick = { navViewModel.saveCurrentDestination() }) { Text("Save place") }
+                        }
+                    }
+                }
+            }
+
+
+            // Selected place — info + navigate
+            selectedPlace?.let { place ->
+                if (!navState.isNavigating) {
+                    Card(
+                        Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                    ) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text(place.name, style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                place.displayName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 3
+                            )
+                            place.distanceMeters?.let { d ->
+                                Text(
+                                    PlaceSearch.formatDistance(d, prefs.useMetric) + " away",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            if (place.category.isNotBlank()) {
+                                Text(
+                                    place.category.replaceFirstChar { c -> c.uppercase() },
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = {
+                                        val loc = locationState.location
+                                        if (loc != null) {
+                                            navViewModel.navigateTo(loc, place)
+                                            selectedPlace = null
+                                            searchQuery = ""
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text("Navigate") }
+                                OutlinedButton(
+                                    onClick = { selectedPlace = null },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text("Close") }
+                            }
                         }
                     }
                 }
