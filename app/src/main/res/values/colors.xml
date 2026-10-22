@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Western / parchment palette -->
+    <color name="parchment">#F5E8C7</color>
+    <color name="parchment_dark">#E8D5A3</color>
+    <color name="ink">#2C1E12</color>
+    <color name="ink_light">#5C4033</color>
+    <color name="trail_brown">#8B5E3C</color>
+    <color name="sage">#7A8B6A</color>
+    <color name="dust">#C4A77D</color>
+</resources>

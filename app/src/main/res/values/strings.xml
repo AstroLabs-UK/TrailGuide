@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Trail Guide</string>
+    <string name="location_permission_required">Location permission is required to show your position on the map.</string>
+    <string name="osm_attribution">© OpenStreetMap · OpenFreeMap · MapLibre</string>
+    <string name="notification_channel_name">Navigation</string>
+    <string name="notification_channel_description">Keeps Trail Guide running while you navigate</string>
+    <string name="notification_title">Trail Guide</string>
+    <string name="notification_text">Navigating — tap to return</string>
+</resources>
