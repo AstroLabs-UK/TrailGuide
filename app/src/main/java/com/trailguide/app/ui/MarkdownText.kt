@@ -4,21 +4,22 @@ import android.graphics.Typeface
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.method.LinkMovementMethod
-import android.text.style.BulletSpan
 import android.text.style.RelativeSizeSpan
 import android.text.style.StyleSpan
+import android.text.style.TypefaceSpan
 import android.text.style.URLSpan
 import android.widget.TextView
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.material3.MaterialTheme
 
 /**
  * Lightweight Markdown renderer for GitHub release notes.
- * Supports: # headers, **bold**, *italic*, - / * lists, [links](url), `code`, blank lines.
+ * Supports: # headers, **bold**, *italic*, lists, [links](url), `code`.
  */
 @Composable
 fun MarkdownText(
@@ -27,7 +28,7 @@ fun MarkdownText(
     textColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     linkColor: Color = MaterialTheme.colorScheme.primary
 ) {
-    val spanned = rememberMarkdownSpanned(markdown)
+    val spanned = remember(markdown) { parseSimpleMarkdown(markdown) }
     AndroidView(
         modifier = modifier,
         factory = { context ->
@@ -46,13 +47,6 @@ fun MarkdownText(
     )
 }
 
-@Composable
-private fun rememberMarkdownSpanned(markdown: String): Spanned {
-    return androidx.compose.runtime.remember(markdown) {
-        parseSimpleMarkdown(markdown)
-    }
-}
-
 internal fun parseSimpleMarkdown(input: String): Spanned {
     val builder = SpannableStringBuilder()
     val lines = input.replace("\r\n", "\n").split("\n")
@@ -60,9 +54,8 @@ internal fun parseSimpleMarkdown(input: String): Spanned {
     for (raw in lines) {
         if (!first) builder.append("\n")
         first = false
-        var line = raw
+        val line = raw
 
-        // Headers
         val headerMatch = Regex("""^(#{1,3})\s+(.*)$""").find(line)
         if (headerMatch != null) {
             val level = headerMatch.groupValues[1].length
@@ -80,33 +73,18 @@ internal fun parseSimpleMarkdown(input: String): Spanned {
             continue
         }
 
-        // Unordered list
         val listMatch = Regex("""^\s*[-*+]\s+(.*)$""").find(line)
         if (listMatch != null) {
-            val text = listMatch.groupValues[1]
-            val start = builder.length
-            builder.append("• ")
-            appendInlineMarkdown(builder, text)
-            try {
-                builder.setSpan(
-                    BulletSpan(16),
-                    start,
-                    builder.length,
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
-            } catch (_: Exception) { }
+            appendInlineMarkdown(builder, "• ${listMatch.groupValues[1]}")
             continue
         }
 
-        // Ordered list
-        val ordered = Regex("""^\s*\d+[.)]\s+(.*)$""").find(line)
+        val ordered = Regex("""^\s*(\d+)[.)]\s+(.*)$""").find(line)
         if (ordered != null) {
-            val num = Regex("""^\s*(\d+)""").find(line)?.groupValues?.get(1) ?: "•"
-            appendInlineMarkdown(builder, "$num. ${ordered.groupValues[1]}")
+            appendInlineMarkdown(builder, "${ordered.groupValues[1]}. ${ordered.groupValues[2]}")
             continue
         }
 
-        // Empty line → small gap
         if (line.isBlank()) {
             builder.append(" ")
             continue
@@ -117,13 +95,10 @@ internal fun parseSimpleMarkdown(input: String): Spanned {
     return builder
 }
 
-/** Bold, italic, code, links on a single line. */
 private fun appendInlineMarkdown(builder: SpannableStringBuilder, text: String) {
-    // Process in one pass with a simple tokenizer
     var i = 0
     val s = text
     while (i < s.length) {
-        // Link [text](url)
         if (s[i] == '[') {
             val close = s.indexOf(']', i)
             if (close > i && close + 1 < s.length && s[close + 1] == '(') {
@@ -139,7 +114,6 @@ private fun appendInlineMarkdown(builder: SpannableStringBuilder, text: String) 
                 }
             }
         }
-        // Bold **text**
         if (i + 1 < s.length && s[i] == '*' && s[i + 1] == '*') {
             val end = s.indexOf("**", i + 2)
             if (end > i) {
@@ -150,8 +124,7 @@ private fun appendInlineMarkdown(builder: SpannableStringBuilder, text: String) 
                 continue
             }
         }
-        // Italic *text*
-        if (s[i] == '*' ) {
+        if (s[i] == '*') {
             val end = s.indexOf('*', i + 1)
             if (end > i) {
                 val start = builder.length
@@ -161,13 +134,13 @@ private fun appendInlineMarkdown(builder: SpannableStringBuilder, text: String) 
                 continue
             }
         }
-        // Code `text`
         if (s[i] == '`') {
             val end = s.indexOf('`', i + 1)
             if (end > i) {
                 val start = builder.length
                 builder.append(s.substring(i + 1, end))
-                builder.setSpan(StyleSpan(Typeface.MONOSPACE), start, builder.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                // StyleSpan only accepts BOLD/ITALIC — use TypefaceSpan for code
+                builder.setSpan(TypefaceSpan("monospace"), start, builder.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 i = end + 1
                 continue
             }
