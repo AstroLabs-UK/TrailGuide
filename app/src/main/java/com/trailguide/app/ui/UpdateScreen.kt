@@ -94,12 +94,17 @@ fun UpdateScreen(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(8.dp))
-            Text(
-                if (expanded) notes else preview,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth()
-            )
+            if (expanded) {
+                MarkdownText(
+                    markdown = notes,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                MarkdownText(
+                    markdown = preview,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             if (notes.lines().size > 4 || notes.length > 280) {
                 TextButton(
                     onClick = { expanded = !expanded },
