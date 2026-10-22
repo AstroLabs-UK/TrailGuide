@@ -14,6 +14,7 @@ import com.trailguide.app.data.SavedPlace
 import com.trailguide.app.location.LocationService
 import com.trailguide.app.routing.DrivingRegion
 import com.trailguide.app.routing.OsrmRoutingService
+import com.trailguide.app.routing.OfflineRerouter
 import com.trailguide.app.routing.PlaceResult
 import com.trailguide.app.routing.PlaceSearch
 import com.trailguide.app.routing.RouteResult
@@ -260,22 +261,18 @@ class NavigationViewModel(application: Application) : AndroidViewModel(applicati
                     speakNow("You've left the trail. Finding a new path.")
                     reroute(location, destLat, destLng, state.destinationName)
                 } else {
-                    // Offline recovery: snap guidance back to nearest step on saved route
-                    val (nearIdx, dist) = offlineStore.nearestStepIndex(
+                    // Offline recovery with bearing toward nearest step on saved route
+                    val recovery = OfflineRerouter.recover(
                         location.latitude, location.longitude, route
                     )
-                    speakNow("You're offline. Head back toward the route.")
-                    val step = route.steps.getOrNull(nearIdx)
-                    if (step != null && nearIdx !in spokenSteps) {
-                        spokenSteps.add(nearIdx)
-                        speak(step.instruction)
-                        _uiState.value = _uiState.value.copy(
-                            currentStepIndex = nearIdx,
-                            lastInstruction = "Head back to the route. ${step.instruction}",
-                            distanceToNextM = dist
-                        )
-                        offlineStore.updateStepIndex(nearIdx)
-                    }
+                    speakNow(recovery.instruction)
+                    spokenSteps.add(recovery.nearestStepIndex)
+                    _uiState.value = _uiState.value.copy(
+                        currentStepIndex = recovery.nearestStepIndex,
+                        lastInstruction = recovery.instruction,
+                        distanceToNextM = recovery.distanceToRouteM
+                    )
+                    offlineStore.updateStepIndex(recovery.nearestStepIndex)
                 }
                 return
             }
@@ -353,8 +350,13 @@ class NavigationViewModel(application: Application) : AndroidViewModel(applicati
         NavSnapshot.destinationName = s.destinationName.orEmpty()
         NavSnapshot.muted = s.muted
         if (route != null) {
-            val km = route.distanceMeters / 1000.0
-            val mins = (route.durationSeconds / 60).toInt()
+            val remainingSteps = route.steps.drop(s.currentStepIndex)
+            val remainM = remainingSteps.sumOf { it.distanceMeters }.takeIf { it > 0 } ?: route.distanceMeters
+            val remainSec = remainingSteps.sumOf { it.durationSeconds }.takeIf { it > 0 } ?: route.durationSeconds
+            NavSnapshot.distanceMeters = remainM
+            NavSnapshot.etaSeconds = remainSec.toLong()
+            val km = remainM / 1000.0
+            val mins = (remainSec / 60).toInt()
             NavSnapshot.distanceText = if (prefs.useMetric) "%.1f km".format(km) else "%.1f mi".format(km / 1.609)
             NavSnapshot.etaText = "$mins min"
         }

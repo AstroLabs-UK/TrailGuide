@@ -10,9 +10,13 @@ object NavSnapshot {
     @Volatile var etaText: String = ""
     @Volatile var destinationName: String = ""
     @Volatile var speedKmh: Int = 0
+    @JvmField var distanceMeters: Double = 0.0
+    @JvmField var etaSeconds: Long = 0
     @Volatile var muted: Boolean = false
 
     fun clear() {
+        distanceMeters = 0.0
+        etaSeconds = 0
         isNavigating = false
         instruction = ""
         distanceText = ""

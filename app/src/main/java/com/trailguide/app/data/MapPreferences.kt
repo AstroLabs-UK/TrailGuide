@@ -111,7 +111,7 @@ class MapPreferences(context: Context) {
         set(value) = prefs.edit().putString(KEY_REGION, value).apply()
 
     var githubRepo: String
-        get() = prefs.getString(KEY_GITHUB, "")?.trim().orEmpty()
+        get() = prefs.getString(KEY_GITHUB, "AstroLabs-UK/TrailGuide")?.trim().orEmpty()
         set(value) = prefs.edit().putString(KEY_GITHUB, value.trim()).apply()
 
     fun styleUrl(): String {
