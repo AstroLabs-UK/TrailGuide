@@ -271,7 +271,7 @@ class NavigationViewModel(application: Application) : AndroidViewModel(applicati
             } else {
                 _uiState.value = NavigationUiState(
                     isCalculating = false,
-                    error = "Could not calculate a route — check connection or try again",
+                    error = "No route found — try a closer place, Drive mode, or check internet",
                     travelMode = mode
                 )
                 // No voice for failures — only speak real turn directions
