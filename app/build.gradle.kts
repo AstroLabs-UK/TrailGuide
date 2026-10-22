@@ -12,8 +12,8 @@ android {
         applicationId = "com.trailguide.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "0.7.3"
+        versionCode = (project.findProperty("ciVersionCode") as String?)?.toIntOrNull() ?: 14
+        versionName = "0.7.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

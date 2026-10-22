@@ -155,6 +155,7 @@ fun MapScreen(
 
     LaunchedEffect(styleUrl) {
         mapLibreMap?.setStyle(Style.Builder().fromUri(styleUrl)) { style ->
+            promoteLabelLayers(style)
             enableLocationComponent(context, mapLibreMap!!, style, prefs.northUp)
             styleReady = true
             styleLoadFailed = false
@@ -262,6 +263,7 @@ fun MapScreen(
                         // Load preferred style; on failure fall back to free OpenFreeMap
                         val primary = styleUrl
                         map.setStyle(Style.Builder().fromUri(primary)) { style ->
+                            promoteLabelLayers(style)
                             enableLocationComponent(context, map, style, prefs.northUp)
                             styleReady = true
                             styleLoadFailed = false
@@ -648,6 +650,26 @@ private fun removeLayerAndSource(style: Style, layerId: String, sourceId: String
 }
 
 @SuppressLint("MissingPermission")
+
+/** Move place/road label layers above 3D buildings so text stays readable. */
+private fun promoteLabelLayers(style: Style) {
+    try {
+        val labelIds = style.layers.map { it.id }.filter { id ->
+            val x = id.lowercase()
+            x.contains("label") || x.contains("place") || x.contains("poi") ||
+                x.contains("symbol") || x.contains("text") || x.contains("road-name") ||
+                x.contains("settlement") || x.contains("housenum")
+        }
+        labelIds.forEach { id ->
+            try {
+                val layer = style.getLayer(id) ?: return@forEach
+                style.removeLayer(id)
+                style.addLayer(layer)
+            } catch (_: Exception) { }
+        }
+    } catch (_: Exception) { }
+}
+
 private fun enableLocationComponent(
     context: Context,
     map: org.maplibre.android.maps.MapLibreMap,

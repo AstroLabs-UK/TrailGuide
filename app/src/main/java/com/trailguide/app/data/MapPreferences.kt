@@ -114,6 +114,18 @@ class MapPreferences(context: Context) {
         get() = prefs.getString(KEY_GITHUB, "AstroLabs-UK/TrailGuide")?.trim().orEmpty()
         set(value) = prefs.edit().putString(KEY_GITHUB, value.trim()).apply()
 
+    var autoUpdateEnabled: Boolean
+        get() = prefs.getBoolean(KEY_AUTO_UPDATE, true)
+        set(value) = prefs.edit().putBoolean(KEY_AUTO_UPDATE, value).apply()
+
+    var pendingUpdatePath: String
+        get() = prefs.getString(KEY_PENDING_APK, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_PENDING_APK, value).apply()
+
+    var pendingUpdateTag: String
+        get() = prefs.getString(KEY_PENDING_TAG, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_PENDING_TAG, value).apply()
+
     fun styleUrl(): String {
         val token = mapboxToken
         return if (token.isNotBlank()) {
@@ -141,6 +153,9 @@ class MapPreferences(context: Context) {
         private const val KEY_SAVED = "saved_places"
         private const val KEY_REGION = "driving_region"
         private const val KEY_GITHUB = "github_repo"
+        private const val KEY_AUTO_UPDATE = "auto_update"
+        private const val KEY_PENDING_APK = "pending_apk"
+        private const val KEY_PENDING_TAG = "pending_tag"
         const val OPENFREEMAP_LIBERTY = "https://tiles.openfreemap.org/styles/liberty"
     }
 }

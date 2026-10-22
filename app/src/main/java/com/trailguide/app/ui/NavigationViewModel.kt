@@ -117,13 +117,18 @@ class NavigationViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSearching = true, error = null)
             try {
-                val results = if (userLat != null && userLng != null && looksLikeShopQuery(query)) {
-                    PlaceSearch.searchShopsNearby(query, userLat, userLng)
-                } else {
-                    val base = PlaceSearch.search(query)
+                val results = run {
+                    val base = if (userLat != null && userLng != null && looksLikeShopQuery(query)) {
+                        PlaceSearch.searchShopsNearby(query, userLat, userLng)
+                    } else {
+                        PlaceSearch.search(query)
+                    }
+                    // Always sort by distance when we know the user location
                     if (userLat != null && userLng != null) {
-                        base.map {
-                            it.copy(distanceMeters = PlaceSearch.haversine(userLat, userLng, it.lat, it.lng))
+                        base.map { place ->
+                            val d = place.distanceMeters
+                                ?: PlaceSearch.haversine(userLat, userLng, place.lat, place.lng)
+                            place.copy(distanceMeters = d)
                         }.sortedBy { it.distanceMeters ?: Double.MAX_VALUE }
                     } else base
                 }
