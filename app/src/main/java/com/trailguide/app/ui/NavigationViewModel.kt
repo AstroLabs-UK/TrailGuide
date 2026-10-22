@@ -160,16 +160,62 @@ class NavigationViewModel(application: Application) : AndroidViewModel(applicati
         return keywords.any { lower.contains(it) }
     }
 
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(error = null)
+    }
+
     fun clearSearch() {
         searchJob?.cancel()
         _uiState.value = _uiState.value.copy(searchResults = emptyList(), isSearching = false)
     }
 
-    fun navigateTo(start: Location, place: PlaceResult) =
-        calculateRoute(start, place.lat, place.lng, place.name)
+    fun navigateTo(start: Location, place: PlaceResult) {
+        viewModelScope.launch {
+            val dest = resolveDriveableDestination(place, start)
+            calculateRoute(start, dest.lat, dest.lng, dest.name)
+        }
+    }
 
-    fun navigateToCoords(start: Location, lat: Double, lng: Double, name: String) =
-        calculateRoute(start, lat, lng, name)
+    fun navigateToCoords(start: Location, lat: Double, lng: Double, name: String) {
+        viewModelScope.launch {
+            val place = PlaceResult(name = name, displayName = name, lat = lat, lng = lng)
+            val dest = resolveDriveableDestination(place, start)
+            calculateRoute(start, dest.lat, dest.lng, dest.name)
+        }
+    }
+
+    /**
+     * For theme parks, attractions, large venues: prefer nearby car parking
+     * so driving directions end at a lot instead of a pedestrian-only pin.
+     */
+    private suspend fun resolveDriveableDestination(
+        place: PlaceResult,
+        start: Location
+    ): PlaceResult {
+        if (!needsParking(place)) return place
+        val parking = PlaceSearch.searchParkingNear(place.lat, place.lng, radiusMeters = 2500)
+        val best = parking.minByOrNull { it.distanceMeters ?: Double.MAX_VALUE }
+        return if (best != null) {
+            best.copy(
+                name = "Parking for ${place.name}",
+                displayName = "${best.name} (near ${place.name})"
+            )
+        } else place
+    }
+
+    private fun needsParking(place: PlaceResult): Boolean {
+        val blob = listOf(place.name, place.displayName, place.category, place.brand)
+            .joinToString(" ").lowercase()
+        val keys = listOf(
+            "theme park", "attraction", "amusement", "universal", "disney", "seaworld",
+            "island of adventure", "hollywood", "harry potter", "bilge", "popeye",
+            "museum", "stadium", "arena", "zoo", "aquarium", "water park",
+            "festival", "concert", "resort", "hotel", "airport", "station",
+            "hospital", "mall", "shopping centre", "shopping center"
+        )
+        return keys.any { it in blob } ||
+            place.category in listOf("attraction", "theme_park", "museum", "stadium", "zoo", "park")
+    }
 
     fun navigateToHome(start: Location) {
         if (prefs.hasHome()) calculateRoute(start, prefs.homeLat, prefs.homeLng, "Home")
@@ -226,7 +272,7 @@ class NavigationViewModel(application: Application) : AndroidViewModel(applicati
                     error = "Could not calculate a route — check connection or try again",
                     travelMode = mode
                 )
-                speakNow("Could not find a trail to that place.")
+                // No voice for failures — only speak real turn directions
                 NavSnapshot.clear()
             }
         }

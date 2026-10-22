@@ -120,6 +120,16 @@ fun MapScreen(
     val keyboard = LocalSoftwareKeyboardController.current
     val locationState by mapViewModel.uiState.collectAsState()
     val navState by navViewModel.uiState.collectAsState()
+    // Auto-dismiss error banners so they don't stick forever
+    LaunchedEffect(navState.error) {
+        if (navState.error != null) {
+            kotlinx.coroutines.delay(6_000)
+            navViewModel.clearError()
+        }
+    }
+    LaunchedEffect(locationState.error) {
+        // location errors are informational; no action beyond display timeout in status text
+    }
     var searchQuery by remember { mutableStateOf("") }
     var searchFocused by remember { mutableStateOf(false) }
 
@@ -592,7 +602,7 @@ fun MapScreen(
                 navState.isRerouting -> "Finding a new path…"
                 navState.isCalculating -> "Getting directions…"
                 styleLoadFailed -> "Map style failed — using free map fallback"
-                navState.error != null -> navState.error
+                navState.error != null -> navState.error!!
                 locationState.error != null -> locationState.error
                 locationState.isLoading -> "Getting your location…"
                 navState.hasArrived -> "You've arrived"

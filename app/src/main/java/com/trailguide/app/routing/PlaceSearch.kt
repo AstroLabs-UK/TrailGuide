@@ -218,7 +218,88 @@ object PlaceSearch {
         return JSONObject(conn.inputStream.bufferedReader().readText())
     }
 
-    fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+
+    /** Find car parking near a point (OSM amenity=parking via Overpass + Nominatim). */
+    suspend fun searchParkingNear(
+        lat: Double,
+        lng: Double,
+        radiusMeters: Int = 2500,
+        limit: Int = 8
+    ): List<PlaceResult> = withContext(Dispatchers.IO) {
+        val overpass = overpassParking(lat, lng, radiusMeters, limit)
+        if (overpass.isNotEmpty()) return@withContext overpass
+        nominatimSearch("parking", limit, lat, lng)
+            .map { it.copy(distanceMeters = haversine(lat, lng, it.lat, it.lng)) }
+            .sortedBy { it.distanceMeters ?: Double.MAX_VALUE }
+    }
+
+    private fun overpassParking(
+        lat: Double,
+        lng: Double,
+        radius: Int,
+        limit: Int
+    ): List<PlaceResult> {
+        return try {
+            val ql = """
+                [out:json][timeout:15];
+                (
+                  node["amenity"="parking"](around:$radius,$lat,$lng);
+                  way["amenity"="parking"](around:$radius,$lat,$lng);
+                  node["amenity"="parking_entrance"](around:$radius,$lat,$lng);
+                  way["amenity"="parking_entrance"](around:$radius,$lat,$lng);
+                );
+                out center $limit;
+            """.trimIndent()
+            val url = URL("https://overpass-api.de/api/interpreter")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("User-Agent", USER_AGENT)
+            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            conn.doOutput = true
+            conn.connectTimeout = 15000
+            conn.readTimeout = 20000
+            conn.outputStream.use {
+                it.write("data=${URLEncoder.encode(ql, "UTF-8")}".toByteArray())
+            }
+            if (conn.responseCode != 200) return emptyList()
+            val body = conn.inputStream.bufferedReader().readText()
+            val elements = JSONObject(body).optJSONArray("elements") ?: return emptyList()
+            buildList {
+                for (i in 0 until elements.length()) {
+                    val el = elements.getJSONObject(i)
+                    val tags = el.optJSONObject("tags")
+                    val name = tags?.optString("name")?.ifBlank { null }
+                        ?: tags?.optString("operator")?.ifBlank { null }
+                        ?: "Parking"
+                    val plat = when {
+                        el.has("lat") -> el.getDouble("lat")
+                        el.has("center") -> el.getJSONObject("center").getDouble("lat")
+                        else -> continue
+                    }
+                    val plng = when {
+                        el.has("lon") -> el.getDouble("lon")
+                        el.has("center") -> el.getJSONObject("center").getDouble("lon")
+                        else -> continue
+                    }
+                    add(
+                        PlaceResult(
+                            name = name,
+                            displayName = "Parking · $name",
+                            lat = plat,
+                            lng = plng,
+                            category = "parking",
+                            distanceMeters = haversine(lat, lng, plat, plng)
+                        )
+                    )
+                }
+            }.sortedBy { it.distanceMeters ?: Double.MAX_VALUE }.take(limit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Parking Overpass failed", e)
+            emptyList()
+        }
+    }
+
+        fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val r = 6371000.0
         val dLat = Math.toRadians(lat2 - lat1)
         val dLon = Math.toRadians(lon2 - lon1)
