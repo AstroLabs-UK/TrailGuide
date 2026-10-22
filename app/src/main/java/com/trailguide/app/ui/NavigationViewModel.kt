@@ -342,6 +342,35 @@ class NavigationViewModel(application: Application) : AndroidViewModel(applicati
         prefs.savePlace(SavedPlace(s.destinationName ?: "Saved place", lat, lng))
     }
 
+
+    private fun restoreOfflineJourneyIfNeeded() {
+        val saved = offlineStore.loadJourney() ?: return
+        _uiState.value = NavigationUiState(
+            route = saved.route,
+            alternatives = listOf(saved.route),
+            isNavigating = true,
+            currentStepIndex = saved.stepIndex,
+            destinationLat = saved.destLat,
+            destinationLng = saved.destLng,
+            destinationName = saved.destName,
+            lastInstruction = saved.route.steps.getOrNull(saved.stepIndex)?.instruction.orEmpty()
+        )
+        startNavService()
+        publishSnapshot()
+    }
+
+    fun downloadOfflineMaps(lat: Double, lng: Double, onProgress: (Int) -> Unit, onDone: (String) -> Unit) {
+        val mgr = com.trailguide.app.data.OfflineMapManager(app)
+        mgr.downloadArea(
+            lat, lng, radiusKm = 20.0, styleUrl = prefs.styleUrl(),
+            listener = object : com.trailguide.app.data.OfflineMapManager.Listener {
+                override fun onProgress(percent: Int) = onProgress(percent)
+                override fun onComplete() = onDone("Map area saved offline")
+                override fun onError(message: String) = onDone("Offline map: $message")
+            }
+        )
+    }
+
     private fun publishSnapshot() {
         val s = _uiState.value
         val route = s.route

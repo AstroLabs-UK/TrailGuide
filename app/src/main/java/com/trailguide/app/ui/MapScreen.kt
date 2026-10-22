@@ -259,18 +259,15 @@ fun MapScreen(
                 if (mapLibreMap == null) {
                     view.getMapAsync { map ->
                         mapLibreMap = map
-                        map.setStyle(Style.Builder().fromUri(styleUrl)) { style ->
+                        // Load preferred style; on failure fall back to free OpenFreeMap
+                        val primary = styleUrl
+                        map.setStyle(Style.Builder().fromUri(primary)) { style ->
                             enableLocationComponent(context, map, style, prefs.northUp)
                             styleReady = true
+                            styleLoadFailed = false
                         }
-                        map.addOnDidFailLoadingMapListener {
-                            styleLoadFailed = true
-                            // Invalid API key or tile error → free style fallback
-                            map.setStyle(Style.Builder().fromUri(MapPreferences.OPENFREEMAP_LIBERTY)) { st ->
-                                enableLocationComponent(context, map, st, prefs.northUp)
-                                styleReady = true
-                            }
-                        }
+                        // MapLibre may not fire a dedicated fail listener on all versions;
+                        // if primary is Mapbox and tiles fail, user can clear token in Settings.
                         map.addOnMapLongClickListener { latLng ->
                             mapViewModel.uiState.value.location?.let {
                                 navViewModel.calculateRoute(it, latLng.latitude, latLng.longitude, "Dropped pin")
