@@ -20,33 +20,31 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Do not install obsolete "tools" package (removed from Google SDK)
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
 
-      - name: Create Gradle wrapper if missing
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Create Gradle wrapper
         run: |
-          if [ ! -f ./gradlew ]; then
-            gradle wrapper --gradle-version 8.7 || true
-          fi
-          chmod +x ./gradlew 2>/dev/null || true
+          gradle wrapper --gradle-version 8.7
+          chmod +x gradlew
 
       - name: Build debug APK
-        run: |
-          if [ -f ./gradlew ]; then
-            ./gradlew assembleDebug --stacktrace
-          else
-            gradle wrapper --gradle-version 8.7
-            chmod +x ./gradlew
-            ./gradlew assembleDebug --stacktrace
-          fi
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: TrailGuide-debug-apk
           path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Attach APK to GitHub Release
         if: github.event_name == 'release'
