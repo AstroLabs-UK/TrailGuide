@@ -86,6 +86,13 @@ fun UpdateScreen(
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Updates the existing app (same data). If install fails with “App not installed”, uninstall the old Trail Guide once, then install this APK — later updates will work.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
 
             Spacer(Modifier.height(20.dp))
             Text(
