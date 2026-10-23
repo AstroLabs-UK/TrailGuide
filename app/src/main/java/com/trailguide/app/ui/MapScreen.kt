@@ -163,6 +163,7 @@ fun MapScreen(
     var mapLibreMap by remember { mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
     var hasCenteredOnce by remember { mutableStateOf(false) }
     var styleLoadFailed by remember { mutableStateOf(false) }
+    var styleErrorDismissed by remember { mutableStateOf(false) }
     var styleReady by remember { mutableStateOf(false) }
 
     // Keep screen on during navigation
@@ -184,7 +185,7 @@ fun MapScreen(
         styleReady = false
         applyMapStyle(
             map, context, prefs,
-            onReady = { styleReady = true; styleLoadFailed = false },
+            onReady = { styleReady = true; styleLoadFailed = false; styleErrorDismissed = false },
             onFailed = { styleReady = true; styleLoadFailed = true }
         )
     }
@@ -290,7 +291,7 @@ fun MapScreen(
                         // Load preferred style; on failure fall back to free OpenFreeMap
                         applyMapStyle(
                             map, context, prefs,
-                            onReady = { styleReady = true; styleLoadFailed = false },
+                            onReady = { styleReady = true; styleLoadFailed = false; styleErrorDismissed = false },
                             onFailed = { styleReady = true; styleLoadFailed = true }
                         )
                         map.addOnMapLongClickListener { latLng ->
