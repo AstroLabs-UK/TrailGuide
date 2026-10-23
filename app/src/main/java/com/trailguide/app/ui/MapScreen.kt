@@ -665,28 +665,92 @@ fun MapScreen(
                 }
             }
 
-            val status = when {
-                navState.isRerouting -> "Finding a new path…"
-                navState.isCalculating -> "Getting directions…"
-                styleLoadFailed -> "Mapbox style failed (bad token or network) — free map shown"
-                navState.error != null -> navState.error!!
-                locationState.error != null && locationPermissions.allPermissionsGranted -> locationState.error
-                locationState.isLoading && locationPermissions.allPermissionsGranted -> "Getting your location…"
-                navState.hasArrived -> "You've arrived"
-                !isOnline && navState.isNavigating -> "Offline guidance — using saved journey"
+            // Unified status / error banner (auto-clears; optional action)
+            val banner: BannerMessage? = when {
+                navState.isRerouting -> BannerMessage(
+                    id = "reroute",
+                    text = "Finding a new path…",
+                    loading = true,
+                    sticky = true,
+                    isError = false
+                )
+                navState.isCalculating -> BannerMessage(
+                    id = "calc",
+                    text = "Getting directions…",
+                    loading = true,
+                    sticky = true,
+                    isError = false
+                )
+                styleLoadFailed && !styleErrorDismissed -> BannerMessage(
+                    id = "style",
+                    text = "Mapbox style failed — check token or network. Free map is shown.",
+                    actionLabel = "Open settings",
+                    sticky = false,
+                    isError = true
+                )
+                navState.error != null -> BannerMessage(
+                    id = "nav-${navState.error}",
+                    text = navState.error!!,
+                    actionLabel = null,
+                    sticky = false,
+                    isError = true
+                )
+                locationState.error != null && locationPermissions.allPermissionsGranted -> BannerMessage(
+                    id = "loc-${locationState.error}",
+                    text = locationState.error!!,
+                    actionLabel = if (locationState.error!!.contains("location", true) ||
+                        locationState.error!!.contains("GPS", true)
+                    ) "Open settings" else null,
+                    sticky = false,
+                    isError = true
+                )
+                locationState.isLoading && locationPermissions.allPermissionsGranted &&
+                    locationState.location == null -> BannerMessage(
+                    id = "loc-loading",
+                    text = "Getting your location…",
+                    loading = true,
+                    sticky = true,
+                    isError = false
+                )
+                navState.hasArrived -> BannerMessage(
+                    id = "arrived",
+                    text = "You've arrived",
+                    sticky = false,
+                    isError = false
+                )
+                !isOnline && navState.isNavigating -> BannerMessage(
+                    id = "offline-nav",
+                    text = "Offline guidance — using saved journey",
+                    sticky = true,
+                    isError = false
+                )
                 else -> null
             }
-            status?.let { msg ->
-                Card(Modifier.align(Alignment.Center).padding(24.dp)) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (navState.isCalculating || navState.isRerouting || locationState.isLoading) {
-                            CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(12.dp))
-                        }
-                        Text(msg)
+
+            ErrorBanner(
+                message = banner,
+                onDismiss = {
+                    when {
+                        styleLoadFailed -> styleErrorDismissed = true
+                        navState.error != null -> navViewModel.clearError()
+                        locationState.error != null -> mapViewModel.clearError()
+                        navState.hasArrived -> { /* arrival is transient */ }
                     }
-                }
-            }
+                },
+                onAction = {
+                    when {
+                        styleLoadFailed -> onOpenSettings()
+                        locationState.error != null -> {
+                            context.startActivity(
+                                Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                            )
+                        }
+                        else -> navViewModel.clearError()
+                    }
+                },
+                autoClearMs = 8_000L,
+                modifier = Modifier.align(Alignment.Center)
+            )
         } else {
             Column(
                 Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp).statusBarsPadding(),

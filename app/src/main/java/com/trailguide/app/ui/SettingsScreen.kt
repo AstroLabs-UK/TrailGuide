@@ -25,6 +25,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
@@ -64,6 +65,26 @@ fun SettingsScreen(onBack: () -> Unit, onTokenSaved: () -> Unit) {
     var msg by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val updateChecker = remember { UpdateChecker(context) }
+
+    // Auto-clear feedback messages after 8s
+    LaunchedEffect(msg) {
+        if (msg != null) {
+            kotlinx.coroutines.delay(8_000)
+            msg = null
+        }
+    }
+    LaunchedEffect(offlineMsg) {
+        if (offlineMsg != null && offlineMsg?.startsWith("Downloading") != true) {
+            kotlinx.coroutines.delay(8_000)
+            offlineMsg = null
+        }
+    }
+    LaunchedEffect(updateMsg) {
+        if (updateMsg != null && updateMsg?.startsWith("Downloading") != true && updateMsg != "Checking…") {
+            kotlinx.coroutines.delay(8_000)
+            updateMsg = null
+        }
+    }
 
     Scaffold(
         topBar = {
