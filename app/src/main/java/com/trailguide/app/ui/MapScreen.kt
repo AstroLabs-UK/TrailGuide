@@ -123,16 +123,6 @@ fun MapScreen(
     val keyboard = LocalSoftwareKeyboardController.current
     val locationState by mapViewModel.uiState.collectAsState()
     val navState by navViewModel.uiState.collectAsState()
-    // Auto-dismiss error banners so they don't stick forever
-    LaunchedEffect(navState.error) {
-        if (navState.error != null) {
-            kotlinx.coroutines.delay(6_000)
-            navViewModel.clearError()
-        }
-    }
-    LaunchedEffect(locationState.error) {
-        // location errors are informational; no action beyond display timeout in status text
-    }
     var searchQuery by remember { mutableStateOf("") }
     var searchFocused by remember { mutableStateOf(false) }
     var selectedPlace by remember { mutableStateOf<com.trailguide.app.routing.PlaceResult?>(null) }
@@ -143,6 +133,28 @@ fun MapScreen(
     val permanentlyDenied = locationPermissions.permissions.any {
         !it.status.isGranted && !it.status.shouldShowRationale
     } && !locationPermissions.allPermissionsGranted
+
+    // Auto-dismiss error banners
+    LaunchedEffect(navState.error) {
+        if (navState.error != null) {
+            kotlinx.coroutines.delay(6_000)
+            navViewModel.clearError()
+        }
+    }
+    LaunchedEffect(locationState.error) {
+        if (locationState.error != null) {
+            kotlinx.coroutines.delay(8_000)
+            mapViewModel.clearError()
+        }
+    }
+    // Only request location AFTER the user grants permission
+    LaunchedEffect(locationPermissions.allPermissionsGranted) {
+        if (locationPermissions.allPermissionsGranted) {
+            mapViewModel.onPermissionGranted()
+        } else {
+            mapViewModel.onPermissionDenied()
+        }
+    }
 
     val mapView = remember {
         MapLibre.getInstance(context)
@@ -658,8 +670,8 @@ fun MapScreen(
                 navState.isCalculating -> "Getting directions…"
                 styleLoadFailed -> "Mapbox style failed (bad token or network) — free map shown"
                 navState.error != null -> navState.error!!
-                locationState.error != null -> locationState.error
-                locationState.isLoading -> "Getting your location…"
+                locationState.error != null && locationPermissions.allPermissionsGranted -> locationState.error
+                locationState.isLoading && locationPermissions.allPermissionsGranted -> "Getting your location…"
                 navState.hasArrived -> "You've arrived"
                 !isOnline && navState.isNavigating -> "Offline guidance — using saved journey"
                 else -> null
