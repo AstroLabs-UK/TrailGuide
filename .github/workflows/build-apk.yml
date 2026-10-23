@@ -42,7 +42,13 @@ jobs:
 
       - name: Build debug APK
         run: |
+          echo "Building versionCode base 20000 + run ${{ github.run_number }}"
           ./gradlew assembleDebug --stacktrace --no-daemon -PciVersionCode=${{ github.run_number }}
+          APK=$(ls app/build/outputs/apk/debug/*.apk | head -1)
+          echo "APK=$APK size=$(stat -c%s "$APK")"
+          # Confirm signature (v1/v2)
+          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose "$APK" ||             $ANDROID_HOME/build-tools/*/apksigner verify --verbose "$APK" || true
+          unzip -l "$APK" | grep -E "META-INF/.*\.(RSA|SF)" || echo "Note: checking v2 block only"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

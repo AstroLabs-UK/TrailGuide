@@ -12,21 +12,23 @@ android {
         applicationId = "com.trailguide.app"
         minSdk = 26
         targetSdk = 35
-        // CI passes -PciVersionCode=<run_number> so each release can install over the last
-        versionCode = (project.findProperty("ciVersionCode") as String?)?.toIntOrNull() ?: 100
-        versionName = "0.7.16"
+        // Base 20000 + CI run number so every GitHub build is always higher than
+        // old installs (run numbers alone were 10–20 and caused "App not installed")
+        val ci = (project.findProperty("ciVersionCode") as String?)?.toIntOrNull() ?: 0
+        versionCode = 20000 + ci
+        versionName = "0.7.17"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    // Same keystore for debug + release so GitHub APKs update each other
-    // (not a Play Store production key — personal / sideload only)
     signingConfigs {
         create("trailguide") {
             storeFile = file("keystore/trailguide-debug.jks")
             storePassword = "trailguide"
             keyAlias = "trailguide"
             keyPassword = "trailguide"
+            enableV1Signing = true
+            enableV2Signing = true
         }
     }
 
@@ -55,6 +57,13 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    packaging {
+        jniLibs {
+            // Keep uncompressed for install reliability
+            useLegacyPackaging = false
+        }
     }
 }
 
