@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import android.os.Build
 import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -164,6 +165,8 @@ fun MapScreen(
     var hasCenteredOnce by remember { mutableStateOf(false) }
     var styleLoadFailed by remember { mutableStateOf(false) }
     var styleErrorDismissed by remember { mutableStateOf(false) }
+    var showInstallPermDialog by remember { mutableStateOf(false) }
+    var installPermAsked by remember { mutableStateOf(false) }
     var styleReady by remember { mutableStateOf(false) }
 
     // Keep screen on during navigation
@@ -177,7 +180,19 @@ fun MapScreen(
     }
 
     LaunchedEffect(Unit) {
-        if (!locationPermissions.allPermissionsGranted) locationPermissions.launchMultiplePermissionRequest()
+        if (!locationPermissions.allPermissionsGranted) {
+            locationPermissions.launchMultiplePermissionRequest()
+        }
+    }
+
+    // After location is granted, ask for install-unknown-apps (needed for updates)
+    LaunchedEffect(locationPermissions.allPermissionsGranted) {
+        if (locationPermissions.allPermissionsGranted && !installPermAsked) {
+            installPermAsked = true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.canInstallPackages()) {
+                showInstallPermDialog = true
+            }
+        }
     }
 
     LaunchedEffect(styleUrl, styleVersion) {
@@ -752,6 +767,31 @@ fun MapScreen(
                 autoClearMs = 8_000L,
                 modifier = Modifier.align(Alignment.Center)
             )
+
+            if (showInstallPermDialog) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showInstallPermDialog = false },
+                    title = { Text("Allow app updates") },
+                    text = {
+                        Text(
+                            "Trail Guide needs permission to install updates from GitHub. " +
+                            "On the next screen, turn on “Allow from this source”."
+                        )
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            showInstallPermDialog = false
+                            context.openInstallPermissionSettings()
+                        }) { Text("Go to settings") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showInstallPermDialog = false }) {
+                            Text("Not now")
+                        }
+                    }
+                )
+            }
+
         } else {
             Column(
                 Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp).statusBarsPadding(),

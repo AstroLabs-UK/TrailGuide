@@ -306,6 +306,27 @@ fun SettingsScreen(onBack: () -> Unit, onTokenSaved: () -> Unit) {
             updateMsg?.let {
                 Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
             }
+
+            Spacer(Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(16.dp))
+            Text("Permissions", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Location is required for navigation. Install permission is required for in-app updates.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { context.openInstallPermissionSettings() },
+                Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    if (context.canInstallPackages()) "Install updates: allowed"
+                    else "Allow install updates (settings)"
+                )
+            }
+
         }
     }
 }
